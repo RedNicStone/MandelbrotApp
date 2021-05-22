@@ -10,6 +10,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin-release)
 
 # Include directories
 include_directories(${CMAKE_SOURCE_DIR}/lib)
+include_directories(${CMAKE_SOURCE_DIR}/lib/GLFW/include)
 include_directories(${CMAKE_SOURCE_DIR}/lib/GLAD/include)
 
 # Compile definitions
@@ -50,7 +51,7 @@ set_property(TARGET MandelbrotApp PROPERTY CXX_STANDARD 20)
 # link glfw
 #find_package(glfw3 3.3 REQUIRED) # doesnt work (with X11)
 #target_link_libraries(MandelbrotApp pthread glfw) # doesnt work (with X11)
-target_link_libraries(MandelbrotApp pthread /home/bennet/Code/GLFW/bin/X11-release/libglfw3.a)
+target_link_libraries(MandelbrotApp pthread ${CMAKE_SOURCE_DIR}/lib/GLFW/bin/X11-release/libglfw3.a)
 
 # needed for glad (for opening libraries)
 target_link_libraries(MandelbrotApp ${CMAKE_DL_LIBS})

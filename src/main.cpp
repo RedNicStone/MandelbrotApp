@@ -234,7 +234,7 @@ static void ImGuiFrame(bool& showImGuiWindow) {
 static void windowResizeCallback(GLFWwindow* window, int width, int height)
 {
 	realPartStart = (0.5l * zoomScale * (1.0l / windowWidth - 1.0l / width)) + realPartStart;
-	imagPartStart = ((long double)width / height) * ((zoomScale * (0.5l * windowHeight + 0.5l) + imagPartStart * windowHeight) / windowWidth) - (0.5l * zoomSMancale * (1.0l + 1.0l / height));
+	imagPartStart = ((long double)width / height) * ((zoomScale * (0.5l * windowHeight + 0.5l) + imagPartStart * windowHeight) / windowWidth) - (0.5l * zoomScale * (1.0l + 1.0l / height));
 	windowWidth = width;
 	windowHeight = height;
 	glViewport(0, 0, width, height);
