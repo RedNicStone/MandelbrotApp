@@ -3,6 +3,15 @@
 #define MANDELBROT_APPUTILITY_INCLUDED
 
 #include <string>
+#include <fstream>
+#include <sstream>
+
+/**
+ * Type representing a complex number
+ * `first` is the real part
+ * `second` is the imaginary part
+ */
+using ComplexNum = std::pair<long double, long double>;
 
 /**
  * Copies a string to a buffer
@@ -17,5 +26,24 @@ void copyStringToBuffer(const std::string& string, char* buffer, unsigned int si
  * Hash algorithm for strings (djb2)
  */
 unsigned long hashDjb2(const std::string& str);
+
+/**
+ * Replaces all occurrences of `search` in `string` with `replace`
+ * 
+ * @param string String to modify
+ * @param search String search for
+ * @param replace String to replace with
+ * @return Returns `true` if `string` was modified, `false` otherwise
+ */
+bool replaceAll(std::string& string, const std::string& search, const std::string& replace);
+
+/**
+ * Reads file to a string
+ * 
+ * @param filePath Path of the file
+ * @return Returns the contents of the file
+ * @throws Could throw `std::ifstream::failure`
+ */
+std::string readFileToString(const char* filePath);
 
 #endif

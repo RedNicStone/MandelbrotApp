@@ -20,12 +20,14 @@ add_compile_definitions(MandelbrotProject GLFW_INCLUDE_NONE)
 add_executable(MandelbrotApp "")
 target_sources(MandelbrotApp PRIVATE
     src/main.cpp
-    #lib/ImGui/main.cpp
 
     src/shader.h
     src/shader.cpp
     src/app_utility.h
     src/app_utility.cpp
+    src/ini_file.h
+    src/saved_view.h
+    src/saved_view.cpp
 
     lib/GLAD/glad.c
 

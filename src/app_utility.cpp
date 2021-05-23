@@ -12,3 +12,24 @@ unsigned long hashDjb2(const std::string& str) {
     }
     return hash;
 }
+
+bool replaceAll(std::string& string, const std::string& search, const std::string& replace) {
+    std::string::size_type pos = 0;
+    while ((pos = string.find(search, pos)) != std::string::npos) {
+        string.replace(pos, search.length(), replace);
+        pos += replace.length();
+    }
+    if (pos != 0)
+        return true;
+    else
+        return false;
+}
+
+std::string readFileToString(const char* filePath) {
+    std::ifstream inputStream(filePath);
+    //inputStream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+
+    std::stringstream stringStream; 
+    stringStream << inputStream.rdbuf();
+    return stringStream.str();
+}

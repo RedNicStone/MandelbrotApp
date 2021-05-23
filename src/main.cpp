@@ -16,29 +16,12 @@
 
 #include "app_utility.h"
 #include "shader.h"
+#include "saved_view.h"
 
 static const std::string AppRootDir = "/home/bennet/Code/MandelbrotApp/";
 
-using ComplexNum = std::pair<long double, long double>;
-struct SavedView {
-	std::string name;
-	ComplexNum startNum;
-	long double zoomScale;
-	std::array<int, 3> imGuiIDs; // -1 is an invalid id
-
-	std::string getName() const {
-		if (!name.empty())
-			return name;
-		else {
-			std::stringstream stream;
-			stream.precision(5);
-			stream << startNum.first + 0.5l * zoomScale << " + " << startNum.second + 0.5l * zoomScale << " i (" << zoomScale << ")";
-			return stream.str();
-		}
-	}
-};
-
 static GLFWwindow* window;
+static Shader shader;
 static unsigned int windowWidth = 1080;
 static unsigned int windowHeight = 720;
 static long double zoomScale = 3.5f; //1.7e-10;
@@ -51,7 +34,6 @@ static int lastFrameArrayIndex = 0;
 static bool autoMaxIterations = true;
 static int maxIterations = 300;
 static bool ImGuiEnabled = true;
-static std::vector<SavedView> savedViews;
 
 
 // * HELPER FUNCTIONS
@@ -89,27 +71,6 @@ static ComplexNum getNumberAtCursor() {
 	return getNumberAtPos(mouseX, mouseY);
 }
 
-static bool idAlreadyExists(int id) {
-	for (int i = 0; i < savedViews.size(); i++) {
-		for (int c = 0; c < savedViews[i].imGuiIDs.size(); c++) {
-			if (id == savedViews[i].imGuiIDs[c] || id == -1) // -1 means invalid
-				return true;
-		}
-	}
-	return false;
-}
-
-static unsigned long createIDForNewSavedView(const std::string& str) {
-	std::srand(std::chrono::high_resolution_clock::now().time_since_epoch().count());
-	unsigned int newID;
-	do {
-		newID = hashDjb2(str) + std::rand();
-	} 
-	while (idAlreadyExists(newID));
-	return newID;
-}
-
-
 // * FUNCTIONS
 
 static void zoom(long double factor) {
@@ -122,19 +83,10 @@ static void zoom(long double factor) {
 	zoomScale *= factor;
 }
 
-static void saveCurrentView() {
-	SavedView saveView;
-	saveView.zoomScale = zoomScale;
-	saveView.startNum = {realPartStart, imagPartStart};
-	for (int i = 0; i < saveView.imGuiIDs.size(); i++)
-		saveView.imGuiIDs[i] = createIDForNewSavedView(saveView.getName());
-	savedViews.push_back(std::move(saveView));
-}
-
 static void jumpToView(SavedView savedView) {
-	zoomScale = savedView.zoomScale;
-	realPartStart = savedView.startNum.first;
-	imagPartStart = savedView.startNum.second;
+	zoomScale = savedView.getZoomScale();
+	realPartStart = savedView.getStartNum().first;
+	imagPartStart = savedView.getStartNum().second;
 }
 
 static void ImGuiFrame(bool& showImGuiWindow) {
@@ -153,6 +105,17 @@ static void ImGuiFrame(bool& showImGuiWindow) {
 					autoMaxIterations = false;
 				ImGui::Checkbox("auto max iterations", &autoMaxIterations);
 
+				ImGui::Text("Color: ");
+				ImGui::SameLine();
+				if (ImGui::SmallButton("RGB"))
+					shader.mandelRecompileWithColor(0);
+				ImGui::SameLine();
+				if (ImGui::SmallButton("Black/White"))
+					shader.mandelRecompileWithColor(1);
+				ImGui::SameLine();
+				if (ImGui::SmallButton("Grayscale"))
+					shader.mandelRecompileWithColor(2);
+
 				//ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 				ImGui::Text("%.1f fps", calcFPSAverage());
 				ImGui::Text("Zoom: %.1Le", zoomScale);
@@ -164,34 +127,33 @@ static void ImGuiFrame(bool& showImGuiWindow) {
 			{
 				// Button to save current view
 				if (ImGui::Button("Save current view"))
-					saveCurrentView();
+					SavedView::saveNew(zoomScale, {realPartStart, imagPartStart});
 
-				for (int i = 0; i < savedViews.size(); i++) {
-					ImGui::PushID(savedViews[i].imGuiIDs[0]);
+				for (SavedView& savedView : SavedView::allViews) {
+					ImGui::PushID(savedView.getImGuiIDs()[0]);
 					if (ImGui::SmallButton("View")) {
-						jumpToView(savedViews[i]);
+						jumpToView(savedView);
 					}
 					ImGui::PopID();
 					ImGui::SameLine();
-					ImGui::Text("%s", savedViews[i].getName().c_str());
+					ImGui::Text("%s", savedView.getName().c_str());
 					ImGui::SameLine();
 
 					static int editSavedViewID = -1;
-					ImGui::PushID(savedViews[i].imGuiIDs[1]);
+					ImGui::PushID(savedView.getImGuiIDs()[1]);
 					static char buffer[50];
 					if (ImGui::SmallButton("Edit")) {
-						editSavedViewID = savedViews[i].imGuiIDs[0];
-						if (!savedViews[i].name.empty())
-							copyStringToBuffer(savedViews[i].name, buffer, 50);
+						editSavedViewID = savedView.getImGuiIDs()[0];
+						copyStringToBuffer(savedView.getName(), buffer, 50);
 					}
 					ImGui::PopID();
 
-					if (editSavedViewID == savedViews[i].imGuiIDs[0]) {
+					if (editSavedViewID == savedView.getImGuiIDs()[0]) {
 						ImGui::OpenPopup("Edit saved view");
 						ImGui::BeginPopup("Edit saved view"); // TODO https://github.com/ocornut/imgui/issues/2495
 						ImGui::SetWindowSize({150, 0}, ImGuiCond_Once);
 						if (ImGui::InputTextWithHint("Name", "Name", buffer, sizeof(buffer), ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll)) {
-							savedViews[i].name = buffer;
+							savedView.setName(buffer);
 							editSavedViewID = -1;
 							copyStringToBuffer("", buffer, 2); // Reset buffer to be empty for next input
 						}
@@ -200,11 +162,9 @@ static void ImGuiFrame(bool& showImGuiWindow) {
 					}
 
 					ImGui::SameLine();
-					ImGui::PushID(savedViews[i].imGuiIDs[2]);
-					if (ImGui::SmallButton("Delete")) {
-						savedViews.erase(savedViews.cbegin() + i);
-						i--;
-					}
+					ImGui::PushID(savedView.getImGuiIDs()[2]);
+					if (ImGui::SmallButton("Delete"))
+						SavedView::removeSavedView(savedView);
 					ImGui::PopID();
 				}
 				ImGui::EndTabItem();
@@ -369,13 +329,15 @@ static void initImGui() {
 
 int main()
 {
+	SavedView::initFromFile();
+
 	if (!initGLFW())
 		return -1;
 	if (!initGlad())
 		return -1;
 	initImGui();
 
-	Shader shader{ AppRootDir + "res/vertexShader.glsl", AppRootDir + "res/fragmentShader.glsl" };
+	shader = {AppRootDir + "res/vertex_shader.glsl", AppRootDir + "res/fragment_shader.glsl", true, false}; // Compile and link shader, but keep sources, ...
 
 	float vertices[] = {
 		-1.0f, -1.0f,	// bottom left
@@ -470,6 +432,7 @@ int main()
 	// delete al resources (not necessary)
 	glDeleteVertexArrays(1, &vertexArray);
 	glDeleteBuffers(1, &vertexBuffer);
+	shader.clean();
 	shader.deleteProgram();
 
 	ImGui_ImplOpenGL3_Shutdown();

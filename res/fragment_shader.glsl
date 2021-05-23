@@ -12,7 +12,7 @@ uint calcMandel(double startReal, double startImag) {
     double real = startReal;
     double imag = startImag;
 
-    for (int n = 1; n < maxIterations; n++) {
+    for (int n = 1; n < maxIterations + 1; n++) {
         if ((real * real) + (imag * imag) > 4) {
             return n;
         }
@@ -24,7 +24,12 @@ uint calcMandel(double startReal, double startImag) {
     return 0;
 }
 
+#if FLOW_COLOR_TYPE == 0
+
 vec4 flowColor(uint index) {
+    if (index == 0)
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    
     float r = 0.0;
     float g = 1.0;
     float b = 0.5333;
@@ -97,13 +102,43 @@ vec4 flowColor(uint index) {
     return vec4(r, g, b, 1.0);
 }
 
+#elif FLOW_COLOR_TYPE == 1
+
+vec4 flowColor(uint index) {
+    if (index != 0)
+        return vec4(1.0, 1.0, 1.0, 1.0);
+    else
+        return vec4(0.0, 0.0, 0.0, 1.0);
+}
+
+#elif FLOW_COLOR_TYPE == 2
+
+float exponent(float val) {
+    if (val > 0)
+        return exp(val);
+    else if (val < 0)
+        return 1.0 / exp(-val);
+    else
+        return 1.0;
+}
+
+vec4 flowColor(uint index) {
+    /*if (index == 0)
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    else {
+        float brightness = 1.0 / exp(0.02 * pow(index, 2));//1.0 / exp(0.02 * index) * (1.0 - 1.0 / pow(4, 0.02 * index));
+        return vec4(brightness, brightness, brightness, 1.0);
+    }*/
+    float brightness = 1.0 / exponent(0.01 * pow(index - 10, 2));//1.0 / exp(0.02 * index) * (1.0 - 1.0 / pow(4, 0.02 * index));
+    return vec4(brightness, brightness, brightness, 1.0);
+}
+
+#endif
+
 void main() {
     double real = zoomScale * (double(gl_FragCoord.x) + 0.5) / windowSize.x + numberStart.x;
     double imag = (zoomScale * (double(gl_FragCoord.y) + 0.5) + numberStart.y * windowSize.y) / windowSize.x;
     
     uint calc = calcMandel(real, imag);
-    if (calc == 0)
-        fragColor = vec4(0.0, 0.0, 0.0, 1.0);
-    else
-        fragColor = flowColor(calc);
+    fragColor = flowColor(calc);
 }

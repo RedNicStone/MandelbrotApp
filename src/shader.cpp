@@ -1,30 +1,50 @@
 #include "shader.h"
 
-Shader::Shader(std::string vertexShaderSource, std::string fragmentShaderSource) {
-    compileVertexShader(vertexShaderSource);
-    compileFragmentShader(fragmentShaderSource);
-    link();
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
+Shader::Shader(std::string vertexShaderSourcePath, std::string fragmentShaderSourcePath, bool compileAndLink, bool clean) {
+    vertexShaderSource = readFileToString(vertexShaderSourcePath.c_str());
+    fragmentShaderSource = readFileToString(fragmentShaderSourcePath.c_str());
+
+    if (compileAndLink) {
+        compileVertexShader();
+        compileFragmentShader();
+        link();
+        
+        if (clean)
+            this->clean();
+    }
+}
+
+void Shader::clean() {
+    deleteShaders();
+    vertexShaderSource.clear();
+    fragmentShaderSource.clear();
+    defines.clear();
+}
+
+void Shader::deleteShaders() {
+    deleteVertexShader();
+    deleteFragmentShader();
 }
 
 void Shader::deleteProgram() {
     glDeleteProgram(shaderProgram);
 }
 
-void Shader::compileVertexShader(std::string shaderSoruce) {
-    vertexShader = loadShaderFromFile(GL_VERTEX_SHADER, shaderSoruce);
+void Shader::compileVertexShader() {
+    std::string finalShaderSource = replaceDefines(vertexShaderSource);
+    vertexShader = loadShaderFromFile(GL_VERTEX_SHADER, finalShaderSource);
 }
 
-void Shader::compileFragmentShader(std::string shaderSource) {
-    fragmentShader = loadShaderFromFile(GL_FRAGMENT_SHADER, shaderSource);
+void Shader::compileFragmentShader() {
+    std::string finalShaderSource = replaceDefines(fragmentShaderSource);
+    fragmentShader = loadShaderFromFile(GL_FRAGMENT_SHADER, finalShaderSource);
 }
 
 void Shader::link() {
     shaderProgram = linkShaderProgram(vertexShader, fragmentShader);
 }
 
-void Shader::use() {
+void Shader::use() const {
     glUseProgram(shaderProgram);
 }
 
@@ -92,24 +112,24 @@ void Shader::setVec4Double(const std::string& name, double x, double y, double z
     glUniform4d(glGetUniformLocation(shaderProgram, name.c_str()), x, y, z, w);
 }
 
-std::string Shader::readFileToString(const char* filePath) {
-    std::ifstream inputStream(filePath);
-    inputStream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-
-    std::stringstream stringStream; 
-    try {
-        stringStream << inputStream.rdbuf();
-    } catch (std::ifstream::failure e) {
-        std::cout << "Error: Could not read file" << std::endl;
-    }
-    return stringStream.str();
+void Shader::mandelRecompileWithColor(int colorNumber) {
+    define("FLOW_COLOR_TYPE", std::to_string(colorNumber));
+    deleteFragmentShader();
+    compileFragmentShader();
+    link();
 }
 
-unsigned int Shader::loadShaderFromFile(int type, std::string filePath) {
+std::string Shader::replaceDefines(const std::string& shaderSource) const {
+    std::string shaderSourceWidthDefines = shaderSource;
+    for (const auto& pair : defines)
+        replaceAll(shaderSourceWidthDefines, pair.first, pair.second);
+    return shaderSourceWidthDefines;
+}
+
+unsigned int Shader::loadShaderFromFile(int type, const std::string& shaderSource) {
     unsigned int shader = glCreateShader(type);
-    std::string shaderSourceString = readFileToString(filePath.c_str());
-    const char* shaderSource = shaderSourceString.c_str();
-    glShaderSource(shader, 1, &shaderSource, nullptr);
+    const char* shaderSourceCString = shaderSource.c_str();
+    glShaderSource(shader, 1, &shaderSourceCString, nullptr);
     glCompileShader(shader);
 
     int success;

@@ -2,10 +2,13 @@
 #ifndef MANDELBROT_SHADER_INCLUDED
 #define MANDELBROT_SHADER_INCLUDED
 
+#include "app_utility.h"
+
 #include <iostream>
 #include <string>
 #include <fstream>
 #include <sstream>
+#include <unordered_map>
 
 #include <glad/glad.h>
 
@@ -17,15 +20,35 @@ protected:
     unsigned int fragmentShader;
     unsigned int shaderProgram;
 
+    std::string vertexShaderSource;
+    std::string fragmentShaderSource;
+    std::unordered_map<std::string, std::string> defines;
+
 public:
+    Shader() = default;
+    /**
+     * Creates a Shader
+     * 
+     * @param vertexShaderSource Vertex shader source
+     * @param fragmentShaderSource Fragment shader source
+     * @param compileAndLink When `true` the shader sources will be compiled and linked instantly, otherwise this can be done manually later (default is `true`)
+     * @param clean When `true` the openGL shaders and the shader sources will be deleted after compiling and linking (default is `true`)
+     */
+    Shader(std::string vertexShaderSourcePath, std::string fragmentShaderSourcePath, bool compileAndLink = true, bool clean = true);
 
-    Shader(std::string vertexShaderSource, std::string fragmentShaderSource);
-
-    void compileVertexShader(std::string shaderSoruce);
-    void compileFragmentShader(std::string shaderSource);
+    void compileVertexShader();
+    void compileFragmentShader();
     void link();
-    void use();
+    void use() const;
+    inline void deleteVertexShader() { glDeleteShader(vertexShader);}
+    inline void deleteFragmentShader() { glDeleteShader(fragmentShader);}
+    void deleteShaders();
     void deleteProgram();
+
+    /**
+     * Deletes openGL shaders, shader sources and defines
+     */
+    void clean();
 
     void setInt(const std::string& name, int value);
     void setVec2Int(const std::string& name, int x, int y);
@@ -44,15 +67,25 @@ public:
     void setVec3Double(const std::string& name, double x, double y, double z);
     void setVec4Double(const std::string& name, double x, double y, double z, double w);
 
-protected: // static helpers
+    /**
+     * When later compiling the the shaders, every occurrence of `name` in the all the shader sources will be replaced by `value`
+     * 
+     * @param name The string that gets replaced
+     * @param value The string to replace with
+     */
+    inline void define(const std::string& name, const std::string& value) { defines[name] = value; }
 
-    static std::string readFileToString(const char* filePath);
+    void mandelRecompileWithColor(int colorNumber);
+
+protected: // helpers
+
+    std::string replaceDefines(const std::string& shaderSource) const;
 
     /** 
      * @param type Needs to be either GL_VERTEX_SHADER or GL_FRAGMENT_SHADER
      * @return Id of the shader object
      */
-    static unsigned int loadShaderFromFile(int type, std::string filePath);
+    static unsigned int loadShaderFromFile(int type, const std::string& shaderSource);
 
     /**
      * @return Id of the program object 
