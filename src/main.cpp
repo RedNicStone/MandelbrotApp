@@ -18,7 +18,7 @@
 #include "shader.h"
 #include "saved_view.h"
 
-static const std::string AppRootDir = "/home/bennet/Code/MandelbrotApp/";
+static const std::string AppRootDir = "";
 
 static GLFWwindow* window;
 static Shader shader;
@@ -319,7 +319,7 @@ static void initImGui() {
     //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
     //IM_ASSERT(font != NULL);
 
-	auto* font = io.Fonts->AddFontFromFileTTF((AppRootDir + "/res/ImGuiFonts/Roboto-Medium.ttf").c_str(), 15.0f);
+	auto* font = io.Fonts->AddFontFromFileTTF((AppRootDir + "res/ImGuiFonts/Roboto-Medium.ttf").c_str(), 15.0f);
 	if (font == nullptr)
 		std::cout << "Error: Font for ImGui couldmaxDigits not be loaded" << std::endl;
 }
