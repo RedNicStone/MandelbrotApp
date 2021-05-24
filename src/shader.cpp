@@ -1,6 +1,6 @@
 #include "shader.h"
 
-Shader::Shader(std::string vertexShaderSourcePath, std::string fragmentShaderSourcePath, bool compileAndLink, bool clean) {
+Shader::Shader(const std::string& vertexShaderSourcePath, const std::string& fragmentShaderSourcePath, bool compileAndLink, bool clean) {
     vertexShaderSource = readFileToString(vertexShaderSourcePath.c_str());
     fragmentShaderSource = readFileToString(fragmentShaderSourcePath.c_str());
 

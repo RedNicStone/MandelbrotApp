@@ -18,19 +18,19 @@
 #include "shader.h"
 #include "saved_view.h"
 
-static const std::string AppRootDir = "";
+static const std::string AppRootDir = "../../"; // Set this, so that it points to the directory in which the "res/" directory can be found
 
 static GLFWwindow* window;
 static Shader shader;
-static unsigned int windowWidth = 1080;
-static unsigned int windowHeight = 720;
-static long double zoomScale = 3.5f; //1.7e-10;
-static long double realPartStart = -2.5f; //-0.04144230656908739;
-static long double imagPartStart = -1.75f; //1.48014290228390966;
-static constexpr long double ZOOM_STEP = 1.1f;
+static int windowWidth = 1080;
+static int windowHeight = 720;
+static long double zoomScale = 3.5L; //1.7e-10;
+static long double realPartStart = -2.5L; //-0.04144230656908739;
+static long double imagPartStart = -1.75L; //1.48014290228390966;
+static constexpr long double ZOOM_STEP = 1.1L;
 
 static std::array<float, 25> lastFrameDeltas;
-static int lastFrameArrayIndex = 0;
+static std::size_t lastFrameArrayIndex = 0;
 static bool autoMaxIterations = true;
 static int maxIterations = 300;
 static bool ImGuiEnabled = true;
@@ -42,7 +42,7 @@ static int getMaxIterations() {
 	//int zoomCount = -std::log(zoomScale / 3.5) / std::log(ZOOM_STEP); // how often you have zoomed in
 
 	if (autoMaxIterations) {
-		maxIterations = 400 + 100  * -std::log10(zoomScale);
+		maxIterations = 400 + 100L * -std::log10(zoomScale);
 		if (maxIterations < 200)
 			maxIterations = 200;
 		else if (maxIterations > 4000)
@@ -77,13 +77,13 @@ static void zoom(long double factor) {
 	double mouseX, mouseY;
 	glfwGetCursorPos(window, &mouseX, &mouseY);
 
-	realPartStart += (1.0 - factor) * zoomScale / windowWidth * mouseX;
-	imagPartStart += (1.0 - factor) * zoomScale / windowHeight * ((long double)windowHeight - mouseY);
+	realPartStart += (1.0L - factor) * zoomScale / windowWidth * mouseX;
+	imagPartStart += (1.0L - factor) * zoomScale / windowHeight * ((long double)windowHeight - mouseY);
 
 	zoomScale *= factor;
 }
 
-static void jumpToView(SavedView savedView) {
+static void jumpToView(const SavedView& savedView) {
 	zoomScale = savedView.getZoomScale();
 	realPartStart = savedView.getStartNum().first;
 	imagPartStart = savedView.getStartNum().second;
@@ -224,12 +224,12 @@ static void keyCallbackGLFW(GLFWwindow* window, int key, int scancode, int actio
 			break;
 
 		case GLFW_KEY_ESCAPE:
-			if (action == GLFW_PRESS && glfwGetKey(window, GLFW_KEY_LEFT_CONTROL))
+			if (action == GLFW_PRESS && glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
 				glfwSetWindowShouldClose(window, true);
 			break;
 
 		case GLFW_KEY_ENTER:
-			if (action == GLFW_PRESS && glfwGetKey(window, GLFW_KEY_LEFT_CONTROL))
+			if (action == GLFW_PRESS && glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
 				ImGuiEnabled = !ImGuiEnabled;
 			break;
 	}
@@ -241,7 +241,7 @@ static void keyCallbackGLFW(GLFWwindow* window, int key, int scancode, int actio
 static bool initGLFW() {
 	glfwSetErrorCallback(errorCallbackGLFW);
 
-	if (!glfwInit()) {
+	if (glfwInit() == GL_FALSE) {
 		std::cout << "Failed to initialize GLFW" << std::endl;
 		return false;
 	}
@@ -319,7 +319,7 @@ static void initImGui() {
     //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
     //IM_ASSERT(font != NULL);
 
-	auto* font = io.Fonts->AddFontFromFileTTF((AppRootDir + "res/ImGuiFonts/Roboto-Medium.ttf").c_str(), 15.0f);
+	ImFont* font = io.Fonts->AddFontFromFileTTF((AppRootDir + "res/ImGuiFonts/Roboto-Medium.ttf").c_str(), 15.0f);
 	if (font == nullptr)
 		std::cout << "Error: Font for ImGui couldmaxDigits not be loaded" << std::endl;
 }
@@ -406,7 +406,7 @@ int main()
 
 		// draw
 		glBindVertexArray(vertexArray);
-		glDrawElements(GL_TRIANGLES, 9, GL_UNSIGNED_INT, 0);
+		glDrawElements(GL_TRIANGLES, 9, GL_UNSIGNED_INT, (void*)0);
 
 		if (ImGuiEnabled)
 			ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -418,7 +418,7 @@ int main()
 		if (ImGuiEnabled) {
 			timePoint endTime = std::chrono::high_resolution_clock::now();
 			auto delta = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
-			lastFrameDeltas[lastFrameArrayIndex++] = (1000.0 / delta.count());
+			lastFrameDeltas[lastFrameArrayIndex++] = (1000.0f / delta.count());
 			if (lastFrameArrayIndex == lastFrameDeltas.size())
 				lastFrameArrayIndex = 0;
 		}

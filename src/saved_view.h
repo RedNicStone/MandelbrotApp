@@ -15,7 +15,8 @@ class SavedView {
 
 // * static
 public:
-    using IDsList_t = std::array<int, 3>;
+    static constexpr auto NUMBER_OF_IDS = 3;
+    using IDsList_t = std::array<int, NUMBER_OF_IDS>;
     static std::vector<SavedView> allViews;
     static void initFromFile();
     static void saveNew(long double zoomScale, const ComplexNum& startNum, const std::string& name = "");

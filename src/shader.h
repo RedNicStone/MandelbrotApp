@@ -34,7 +34,7 @@ public:
      * @param compileAndLink When `true` the shader sources will be compiled and linked instantly, otherwise this can be done manually later (default is `true`)
      * @param clean When `true` the openGL shaders and the shader sources will be deleted after compiling and linking (default is `true`)
      */
-    Shader(std::string vertexShaderSourcePath, std::string fragmentShaderSourcePath, bool compileAndLink = true, bool clean = true);
+    Shader(const std::string& vertexShaderSourcePath, const std::string& fragmentShaderSourcePath, bool compileAndLink = true, bool clean = true);
 
     void compileVertexShader();
     void compileFragmentShader();

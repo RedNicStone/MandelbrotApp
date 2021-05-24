@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 3.2.0)
+cmake_minimum_required(VERSION 3.13.5)
 project(MandelbrotProject VERSION 0.1.0)
 
-#include(CTest)
-#enable_testing()
+# include(CTest)
+# enable_testing()
 
 # Set output directories for release and debug
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin-debug)
@@ -15,6 +15,9 @@ include_directories(${CMAKE_SOURCE_DIR}/lib/GLAD/include)
 
 # Compile definitions
 add_compile_definitions(MandelbrotProject GLFW_INCLUDE_NONE)
+
+# Static analysis (only debug)
+include(cmake/StaticAnalysis.cmake)
 
 # Exectutable
 add_executable(MandelbrotApp "")
@@ -30,7 +33,21 @@ target_sources(MandelbrotApp PRIVATE
     src/saved_view.cpp
 
     lib/GLAD/glad.c
+)
 
+set_property(TARGET MandelbrotApp PROPERTY CXX_STANDARD 20)
+
+# set compiler warnings
+include(cmake/CompilerWarnings.cmake)
+set_project_warnings(MandelbrotApp)
+
+# sanitizer options if supported by compiler (only debug)
+include(cmake/Sanitizers.cmake)
+enable_sanitizers(MandelbrotApp)
+
+# ImGui Library
+add_library(ImGuiLib STATIC "")
+target_sources(ImGuiLib PRIVATE
     lib/ImGui/imgui.h
     lib/ImGui/imgui.cpp
     lib/ImGui/imgui_internal.h
@@ -45,14 +62,17 @@ target_sources(MandelbrotApp PRIVATE
     lib/ImGui/imgui_impl_opengl3.cpp
     lib/ImGui/imgui_impl_glfw.cpp
     lib/ImGui/imgui_impl_glfw.h
-
 )
 
-set_property(TARGET MandelbrotApp PROPERTY CXX_STANDARD 20)
+# sanitizer options if supported by compiler (only debug)
+enable_sanitizers(ImGuiLib)
+
+#link ImGui
+target_link_libraries(MandelbrotApp ImGuiLib)
 
 # link glfw
-#find_package(glfw3 3.3 REQUIRED) # doesnt work (with X11)
-#target_link_libraries(MandelbrotApp pthread glfw) # doesnt work (with X11)
+# find_package(glfw3 3.3 REQUIRED) # doesnt work (with X11)
+# target_link_libraries(MandelbrotApp pthread glfw) # doesnt work (with X11)
 target_link_libraries(MandelbrotApp pthread ${CMAKE_SOURCE_DIR}/lib/GLFW/bin/X11-release/libglfw3.a)
 
 # needed for glad (for opening libraries)

@@ -1,7 +1,7 @@
 #include "app_utility.h"
 
 void copyStringToBuffer(const std::string& string, char* buffer, unsigned int size) {
-    int index = string.copy(buffer, size - 1);
+    auto index = string.copy(buffer, size - 1);
     buffer[index] = '\0';
 }
 
@@ -19,10 +19,8 @@ bool replaceAll(std::string& string, const std::string& search, const std::strin
         string.replace(pos, search.length(), replace);
         pos += replace.length();
     }
-    if (pos != 0)
-        return true;
-    else
-        return false;
+    
+    return (pos != 0);
 }
 
 std::string readFileToString(const char* filePath) {

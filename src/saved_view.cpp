@@ -11,12 +11,12 @@ IniFile<int> SavedView::iniFile{"saved_views.ini"};
 void SavedView::initFromFile() {
 	for (const auto& pair : iniFile) {
 		//allViews.insert(std::cbegin(allViews), std::move(SavedView{pair.first, pair.second})); // Add to front
-		allViews.push_back(std::move(SavedView{pair.first, pair.second}));
+		allViews.push_back(SavedView{pair.first, pair.second});
 	}
 }
 
 void SavedView::saveNew(long double zoomScale, const ComplexNum& startNum, const std::string& name) {
-	allViews.push_back(std::move(SavedView{zoomScale, startNum, name}));
+	allViews.push_back(SavedView{zoomScale, startNum, name});
 	const SavedView& currentElement = *(allViews.cend() - 1);
 	iniFile.set(currentElement.imGuiIDs[0], currentElement.viewDataToString());
 }
@@ -37,9 +37,12 @@ void SavedView::setName(const std::string& name) {
 }
 
 bool SavedView::isIDValid(int id) {
-	for (int i = 0; i < allViews.size(); i++) {
-		for (int c = 0; c < allViews[i].imGuiIDs.size(); c++) {
-			if (id == allViews[i].imGuiIDs[c] || id == -1) // -1 means invalid
+	if (id == -1)
+		return false; // -1 is invalid
+
+	for (const SavedView& savedView : allViews) {
+		for (int c = 0; c < NUMBER_OF_IDS; c++) {
+			if (id == savedView.imGuiIDs[c])
 				return false;
 		}
 	}
@@ -48,7 +51,7 @@ bool SavedView::isIDValid(int id) {
 
 int SavedView::createNewID() const {
     std::srand(std::chrono::high_resolution_clock::now().time_since_epoch().count());
-	unsigned int newID;
+	int newID;
 	do {
 		newID = hashDjb2(getName()) + std::rand();
 	} 
@@ -62,8 +65,8 @@ SavedView::SavedView(long double zoomScale, const ComplexNum& startNum, const st
     if (name.empty())
         this->name = createGenericName();
 
-	for (int i = 0; i < imGuiIDs.size(); i++)
-		imGuiIDs[i] = createNewID();
+	for (int& imGuiID : imGuiIDs)
+		imGuiID = createNewID();
 }
 
 SavedView::SavedView(int firstID, const std::string& viewData) {
@@ -91,7 +94,7 @@ SavedView::SavedView(int firstID, const std::string& viewData) {
 std::string SavedView::createGenericName() const {
     std::stringstream stream;
     stream.precision(5);
-    stream << startNum.first + 0.5l * zoomScale << " + " << startNum.second + 0.5l * zoomScale << " i (" << zoomScale << ")";
+    stream << startNum.first + 0.5L * zoomScale << " + " << startNum.second + 0.5L * zoomScale << " i (" << zoomScale << ")";
     return stream.str();
 }
 
