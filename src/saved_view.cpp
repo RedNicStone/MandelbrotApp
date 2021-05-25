@@ -6,7 +6,7 @@
 
 std::vector<SavedView> SavedView::allViews;
 
-IniFile<int> SavedView::iniFile{"saved_views.ini"};
+IniFile<int> SavedView::iniFile{AppRootDir + "build/saved_views.ini"};
 
 void SavedView::initFromFile() {
 	for (const auto& pair : iniFile) {

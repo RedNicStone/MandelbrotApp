@@ -18,8 +18,6 @@
 #include "shader.h"
 #include "saved_view.h"
 
-static const std::string AppRootDir = "../../"; // Set this, so that it points to the directory in which the "res/" directory can be found
-
 static GLFWwindow* window;
 static Shader shader;
 static int windowWidth = 1080;
@@ -113,7 +111,7 @@ static void ImGuiFrame(bool& showImGuiWindow) {
 				if (ImGui::SmallButton("Black/White"))
 					shader.mandelRecompileWithColor(1);
 				ImGui::SameLine();
-				if (ImGui::SmallButton("Grayscale"))
+				if (ImGui::SmallButton("Glowing"))
 					shader.mandelRecompileWithColor(2);
 
 				//ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
@@ -321,7 +319,7 @@ static void initImGui() {
 
 	ImFont* font = io.Fonts->AddFontFromFileTTF((AppRootDir + "res/ImGuiFonts/Roboto-Medium.ttf").c_str(), 15.0f);
 	if (font == nullptr)
-		std::cout << "Error: Font for ImGui couldmaxDigits not be loaded" << std::endl;
+		std::cout << "Error: Font for ImGui could not be loaded" << std::endl;
 }
 
 
