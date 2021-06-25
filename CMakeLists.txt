@@ -5,8 +5,8 @@ project(MandelbrotProject VERSION 0.1.0)
 # enable_testing()
 
 # Set output directories for release and debug
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin-debug)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin-release)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/../)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/../)
 
 # Include directories
 include_directories(${CMAKE_SOURCE_DIR}/lib)
