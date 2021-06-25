@@ -1,0 +1,6 @@
+/home/nic/MandelbrotApp/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/home/nic/MandelbrotApp/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/nic/MandelbrotApp/cmake-build-debug/CMakeFiles/ImGuiLib.dir
+/home/nic/MandelbrotApp/cmake-build-debug/CMakeFiles/package.dir
+/home/nic/MandelbrotApp/cmake-build-debug/CMakeFiles/MandelbrotApp.dir
+/home/nic/MandelbrotApp/cmake-build-debug/CMakeFiles/package_source.dir

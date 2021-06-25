@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13.5)
+cmake_minimum_required(VERSION 3.2 FATAL_ERROR)
 project(MandelbrotProject VERSION 0.1.0)
 
 # include(CTest)
@@ -12,6 +12,15 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/../)
 include_directories(${CMAKE_SOURCE_DIR}/lib)
 include_directories(${CMAKE_SOURCE_DIR}/lib/GLFW/include)
 include_directories(${CMAKE_SOURCE_DIR}/lib/GLAD/include)
+
+# Include OpenGL
+set(OpenGL_GL_PREFERENCE LEGACY)
+find_package(OpenGL REQUIRED)
+include_directories( ${OPENGL_INCLUDE_DIRS} )
+
+# Include GLFW
+find_package(GLEW REQUIRED)
+include_directories(${GLEW_INCLUDE_DIRS})
 
 # Compile definitions
 add_compile_definitions(MandelbrotProject GLFW_INCLUDE_NONE)
@@ -67,7 +76,13 @@ target_sources(ImGuiLib PRIVATE
 # sanitizer options if supported by compiler (only debug)
 enable_sanitizers(ImGuiLib)
 
-#link ImGui
+# link OpenGL
+target_link_libraries(MandelbrotApp ${OPENGL_LIBRARIES} )
+
+# link GLFW
+target_link_libraries(MandelbrotApp ${GLEW_LIBRARIES} )
+
+# link ImGui
 target_link_libraries(MandelbrotApp ImGuiLib)
 
 # link glfw

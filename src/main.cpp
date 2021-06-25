@@ -18,6 +18,8 @@
 #include "shader.h"
 #include "saved_view.h"
 
+#define IMGUI_IMPL_OPENGL_LOADER_GLAD2
+
 static GLFWwindow* window;
 static Shader shader;
 static int windowWidth = 1080;
@@ -238,11 +240,14 @@ static void keyCallbackGLFW(GLFWwindow* window, int key, int scancode, int actio
 
 static bool initGLFW() {
 	glfwSetErrorCallback(errorCallbackGLFW);
-
+ 
 	if (glfwInit() == GL_FALSE) {
 		std::cout << "Failed to initialize GLFW" << std::endl;
 		return false;
 	}
+	
+	std::cout << "Using GLFW with arguments: " << glfwGetVersionString() << std::endl;
+	
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -256,7 +261,7 @@ static bool initGLFW() {
 		return false;
 	}
 	glfwMakeContextCurrent(window);
-	glfwSwapInterval(1); // enable vsync
+    glfwSwapInterval(1); // enable vsync
 
 	// set input callbacks
 	glfwSetFramebufferSizeCallback(window, windowResizeCallback);
@@ -267,7 +272,7 @@ static bool initGLFW() {
 }
 
 static bool initGlad() {
-	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+	if (gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress)) == GL_FALSE) {
 		std::cout << "Failed to initialize GLAD" << std::endl;
 		return false;
 	}
