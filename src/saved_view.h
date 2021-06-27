@@ -8,7 +8,7 @@
 #include <string>
 #include <compare>
 
-#include "app_utility.h"
+#include "utils.h"
 #include "ini_file.h"
 
 class SavedView {
@@ -40,8 +40,6 @@ public:
     inline const IDsList_t& getImGuiIDs() const { return imGuiIDs; }
 
     void setName(const std::string& name);
-
-    auto operator<=>(const SavedView& other) const = default;
 
 protected:
     SavedView(long double zoomScale, const ComplexNum& startNum, const std::string& name = "");

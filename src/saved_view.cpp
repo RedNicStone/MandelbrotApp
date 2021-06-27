@@ -23,8 +23,9 @@ void SavedView::saveNew(long double zoomScale, const ComplexNum& startNum, const
 
 void SavedView::removeSavedView(const SavedView& savedView) {
 	iniFile.remove(savedView.imGuiIDs[0]);
-	auto iterator = std::find(allViews.cbegin(), allViews.cend(), savedView);
-	allViews.erase(iterator);
+	//auto iterator = std::find( allViews.cend(), allViews.cend(), savedView);
+	//allViews.erase(iterator);
+	//fixme find
 }
 
 

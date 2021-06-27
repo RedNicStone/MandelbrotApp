@@ -1,1 +1,0 @@
-/usr/bin/c++ -g -rdynamic CMakeFiles/MandelbrotApp.dir/src/main.cpp.o CMakeFiles/MandelbrotApp.dir/src/shader.cpp.o CMakeFiles/MandelbrotApp.dir/src/app_utility.cpp.o CMakeFiles/MandelbrotApp.dir/src/saved_view.cpp.o CMakeFiles/MandelbrotApp.dir/lib/GLAD/glad.c.o -o ../MandelbrotApp  -lGL -lGLU -lGLEW libImGuiLib.a -lpthread ../lib/GLFW/bin/X11-release/libglfw3.a -ldl 

@@ -2,7 +2,7 @@
 #ifndef MANDELBROT_SHADER_INCLUDED
 #define MANDELBROT_SHADER_INCLUDED
 
-#include "app_utility.h"
+#include "utils.h"
 
 #include <iostream>
 #include <string>

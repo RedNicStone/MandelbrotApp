@@ -1,4 +1,0 @@
-/home/nic/.local/share/JetBrains/Toolbox/apps/CLion/ch-0/211.7442.42/bin/cmake/linux/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/c++ -G "CodeBlocks - Unix Makefiles" /home/nic/MandelbrotApp
--- Configuring done
--- Generating done
--- Build files have been written to: /home/nic/MandelbrotApp/cmake-build-debug

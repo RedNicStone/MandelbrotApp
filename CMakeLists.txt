@@ -1,50 +1,27 @@
-cmake_minimum_required(VERSION 3.2 FATAL_ERROR)
-project(MandelbrotProject VERSION 0.1.0)
+cmake_minimum_required(VERSION 3.3 FATAL_ERROR)
+project(MandelbrotProject VERSION 0.2.1)
+set(CMAKE_CXX_STANDARD 17)
 
-# include(CTest)
-# enable_testing()
-
-# Set output directories for release and debug
+# set output directories for release and debug
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/../)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/../)
 
-# Include directories
+# include directories
 include_directories(${CMAKE_SOURCE_DIR}/lib)
-include_directories(${CMAKE_SOURCE_DIR}/lib/GLFW/include)
-include_directories(${CMAKE_SOURCE_DIR}/lib/GLAD/include)
 
-# Include OpenGL
-set(OpenGL_GL_PREFERENCE LEGACY)
-find_package(OpenGL REQUIRED)
-include_directories( ${OPENGL_INCLUDE_DIRS} )
-
-# Include GLFW
-find_package(GLEW REQUIRED)
-include_directories(${GLEW_INCLUDE_DIRS})
-
-# Compile definitions
-add_compile_definitions(MandelbrotProject GLFW_INCLUDE_NONE)
-
-# Static analysis (only debug)
+# static analysis (only debug)
 include(cmake/StaticAnalysis.cmake)
 
-# Exectutable
-add_executable(MandelbrotApp "")
+# executable
+add_executable(MandelbrotApp src/main.cpp)
 target_sources(MandelbrotApp PRIVATE
-    src/main.cpp
+        src/main.cpp
 
-    src/shader.h
-    src/shader.cpp
-    src/app_utility.h
-    src/app_utility.cpp
-    src/ini_file.h
-    src/saved_view.h
-    src/saved_view.cpp
-
-    lib/GLAD/glad.c
+        #src/shader.cpp
+        src/utils.cpp
+        src/saved_view.cpp
+        #src/imgui.cpp
 )
-
-set_property(TARGET MandelbrotApp PROPERTY CXX_STANDARD 20)
 
 # set compiler warnings
 include(cmake/CompilerWarnings.cmake)
@@ -54,44 +31,68 @@ set_project_warnings(MandelbrotApp)
 include(cmake/Sanitizers.cmake)
 enable_sanitizers(MandelbrotApp)
 
-# ImGui Library
-add_library(ImGuiLib STATIC "")
-target_sources(ImGuiLib PRIVATE
-    lib/ImGui/imgui.h
-    lib/ImGui/imgui.cpp
-    lib/ImGui/imgui_internal.h
-    lib/ImGui/imgui_tables.cpp
-    lib/ImGui/imgui_widgets.cpp
-    lib/ImGui/imgui_draw.cpp
-    lib/ImGui/imstb_rectpack.h
-    lib/ImGui/imstb_textedit.h
-    lib/ImGui/imstb_truetype.h
-    lib/ImGui/imconfig.h
-    lib/ImGui/imgui_impl_opengl3.h
-    lib/ImGui/imgui_impl_opengl3.cpp
-    lib/ImGui/imgui_impl_glfw.cpp
-    lib/ImGui/imgui_impl_glfw.h
+# build shaders
+set(SHADERS_SOURCE_DIR ${CMAKE_SOURCE_DIR}/res/shaders)
+
+set(SHADERS_BUILD_GOAL
+        ${SHADERS_SOURCE_DIR}/quad_vert.spv
+        ${SHADERS_SOURCE_DIR}/mandelbrot_frag.spv
 )
 
+add_custom_command(
+        COMMAND ${SHADERS_SOURCE_DIR}/compile.sh
+        WORKING_DIRECTORY ${SHADERS_SOURCE_DIR}
+        OUTPUT ${SHADERS_BUILD_GOAL}
+)
+
+add_custom_target(
+        shaders ALL
+        DEPENDS ${SHADERS_BUILD_GOAL}
+)
+
+add_dependencies(MandelbrotApp shaders)
+
+# ImGui Library
+set(IMGUI_PATH  ${CMAKE_SOURCE_DIR}/lib/imgui)
+
+file(GLOB IMGUI_SOURCES
+        ${IMGUI_PATH}/*.cpp)
+
+file(GLOB IMGUI_MISC_SOURCES
+        ${IMGUI_PATH}/misc/*.cpp)
+
+set(IMGUI_SOURCES
+        ${IMGUI_SOURCES}
+        ${IMGUI_MISC_SOURCES}
+        ${IMGUI_PATH}/backends/imgui_impl_vulkan.cpp
+        ${IMGUI_PATH}/backends/imgui_impl_glfw.cpp)
+
+add_library(ImGui STATIC ${IMGUI_SOURCES})
+target_include_directories(ImGui PUBLIC ${IMGUI_PATH})
 # sanitizer options if supported by compiler (only debug)
-enable_sanitizers(ImGuiLib)
-
-# link OpenGL
-target_link_libraries(MandelbrotApp ${OPENGL_LIBRARIES} )
-
-# link GLFW
-target_link_libraries(MandelbrotApp ${GLEW_LIBRARIES} )
+#enable_sanitizers(ImGui)
 
 # link ImGui
-target_link_libraries(MandelbrotApp ImGuiLib)
+target_link_libraries(MandelbrotApp PUBLIC ImGui)
+
+# find vulkan
+SET(VULKAN_SDK /home/nic/vulkan/vulkan-sdk/1.2.154.0/x86_64)
+SET(Vulkan_LIBRARY ${VULKAN_SDK}/lib/libvulkan.so)
+SET(Vulkan_INCLUDE_DIR ${VULKAN_SDK}/include)
+
+# link vulkan
+find_package(Vulkan REQUIRED FATAL_ERROR)
+target_link_libraries(MandelbrotApp PUBLIC Vulkan::Vulkan)
+
+# find glfw
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+
+add_subdirectory(${CMAKE_SOURCE_DIR}/lib/glfw)
 
 # link glfw
-# find_package(glfw3 3.3 REQUIRED) # doesnt work (with X11)
-# target_link_libraries(MandelbrotApp pthread glfw) # doesnt work (with X11)
-target_link_libraries(MandelbrotApp pthread ${CMAKE_SOURCE_DIR}/lib/GLFW/bin/X11-release/libglfw3.a)
-
-# needed for glad (for opening libraries)
-target_link_libraries(MandelbrotApp ${CMAKE_DL_LIBS})
+target_link_libraries(MandelbrotApp PUBLIC glfw)
 
 # CPack
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
