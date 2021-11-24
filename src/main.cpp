@@ -79,7 +79,7 @@ struct SwapChainSupportDetails {
 };
 
 struct MandelbrotUBO {
-    glm::highp_vec2 pos;
+    glm::highp_dvec2 pos;
     glm::mediump_ivec2 res;
     double zoom;
     uint16_t iterations;
@@ -116,16 +116,22 @@ class MandelbrotApp {
     
     VkSwapchainKHR swapChain;
     std::vector<VkImage> swapChainImages;
+    std::vector<VkImage> iterationAttachmentImages;
+    std::vector<VkDeviceMemory> iterationAttachmentImageMemory;
     VkFormat swapChainImageFormat;
+    VkFormat iterationAttachmentFormat;
     VkExtent2D swapChainExtent;
     std::vector<VkImageView> swapChainImageViews;
+    std::vector<VkImageView> iterationAttachmentImageViews;
     std::vector<VkFramebuffer> swapChainFrameBuffers;
     
     VkRenderPass renderPass;
-    VkDescriptorSetLayout uboDescriptorSetLayout;
+    VkDescriptorSetLayout descriptorSetsLayout;
     
-    VkPipelineLayout graphicsPipelineLayout;
-    VkPipeline graphicsPipeline;
+    VkPipelineLayout shadingPipelineLayout;
+    VkPipelineLayout iterationPipelineLayout;
+    VkPipeline shadingPipeline;
+    VkPipeline iterationPipeline;
     
     VkCommandPool commandPool;
     
@@ -145,7 +151,7 @@ class MandelbrotApp {
     bool framebufferResized = false;
     
     VkDescriptorPool graphicsDescriptorPool;
-    std::vector<VkDescriptorSet> graphicsDescriptorSets;
+    std::vector<VkDescriptorSet> descriptorSets;
     
     VkDescriptorPool imguiDescriptorPool;
     
@@ -223,7 +229,7 @@ class MandelbrotApp {
         createSwapChain();
         createImageViews();
         createRenderPass();
-        createDescriptorSetLayout();
+        createDescriptorSetLayouts();
         createGraphicsPipeline();
         createFrameBuffers();
         createCommandPool();
@@ -266,13 +272,14 @@ class MandelbrotApp {
         vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(graphicsCommandBuffers.size()),
                              graphicsCommandBuffers.data());
         
-        vkDestroyPipeline(device, graphicsPipeline, nullptr);
-        vkDestroyPipelineLayout(device, graphicsPipelineLayout, nullptr);
+        vkDestroyPipeline(device, shadingPipeline, nullptr);
+        vkDestroyPipelineLayout(device, shadingPipelineLayout, nullptr);
+        vkDestroyPipeline(device, iterationPipeline, nullptr);
+        vkDestroyPipelineLayout(device, iterationPipelineLayout, nullptr);
         vkDestroyRenderPass(device, renderPass, nullptr);
         
         for (auto imageView : swapChainImageViews) {
             vkDestroyImageView(device, imageView, nullptr);
-            
         }
         
         vkDestroySwapchainKHR(device, swapChain, nullptr);
@@ -280,6 +287,10 @@ class MandelbrotApp {
         for (size_t i = 0; i < swapChainImages.size(); i++) {
             vkDestroyBuffer(device, uniformBuffers[i], nullptr);
             vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
+    
+            vkDestroyImageView(device, iterationAttachmentImageViews[i], nullptr);
+            vkDestroyImage(device, iterationAttachmentImages[i], nullptr);
+            vkFreeMemory(device, iterationAttachmentImageMemory[i], nullptr);
         }
         
         vkDestroyDescriptorPool(device, graphicsDescriptorPool, nullptr);
@@ -290,7 +301,7 @@ class MandelbrotApp {
         
         cleanupSwapChain();
         
-        vkDestroyDescriptorSetLayout(device, uboDescriptorSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(device, descriptorSetsLayout, nullptr);
         
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
@@ -439,8 +450,12 @@ class MandelbrotApp {
                 VkPhysicalDeviceProperties deviceProperties;
                 vkGetPhysicalDeviceProperties(possibleDevice, &deviceProperties);
                 std::string name = deviceProperties.deviceName;
-                if (name.find("llvmpipe") == std::string::npos) // check if device is virtual
+                std::cout << " * " << name;
+                if (name.find("llvmpipe") == std::string::npos) { // check if device is virtual
                     physicalDevice = possibleDevice;
+                    std::cout << "  [USING]";
+                }
+                std::cout << std::endl;
             }
         }
         
@@ -651,6 +666,7 @@ class MandelbrotApp {
         }
         
         VkPhysicalDeviceFeatures deviceFeatures{};
+        deviceFeatures.shaderFloat64 = VK_TRUE;
         
         VkDeviceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -729,15 +745,38 @@ class MandelbrotApp {
         vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data());
         
         swapChainImageFormat = surfaceFormat.format;
+        iterationAttachmentFormat = findSupportedFormat({VK_FORMAT_R16G16B16A16_SFLOAT},
+                                                        VK_IMAGE_TILING_OPTIMAL,
+                                                        VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT);
+        //VK_FORMAT_R64_UINT, VK_FORMAT_R32_UINT, VK_FORMAT_R16_UINT,
+        //                                                         VK_FORMAT_R8_UINT
+        
         swapChainExtent = extent;
+        
+        iterationAttachmentImages.resize(imageCount);
+        iterationAttachmentImageMemory.resize(imageCount);
+    
+        for (size_t i = 0; i < imageCount; i++) {
+            
+            createImage(swapChainExtent.width, swapChainExtent.height, iterationAttachmentFormat,
+                        VK_IMAGE_TILING_OPTIMAL,
+                        static_cast<VkImageUsageFlagBits>(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+                            | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT), queueFamilyIndices[0],
+                        VK_IMAGE_LAYOUT_UNDEFINED,
+                        iterationAttachmentImages[i], iterationAttachmentImageMemory[i]);
+        }
     }
     
     void createImageViews() {
         swapChainImageViews.resize(swapChainImages.size());
+        iterationAttachmentImageViews.resize(swapChainImages.size());
         
         for (size_t i = 0; i < swapChainImages.size(); i++) {
             swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat,
                                                      VK_IMAGE_ASPECT_COLOR_BIT);
+    
+            iterationAttachmentImageViews[i] = createImageView(iterationAttachmentImages[i], iterationAttachmentFormat,
+                                                               VK_IMAGE_ASPECT_COLOR_BIT);
         }
     }
     
@@ -766,85 +805,136 @@ class MandelbrotApp {
     }
     
     void createRenderPass() {
-        VkAttachmentDescription colorAttachment{};
-        colorAttachment.format = swapChainImageFormat;
-        colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-        colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-        colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        VkAttachmentDescription attachments[2]{};
+        
+        attachments[0].flags = VK_ATTACHMENT_DESCRIPTION_MAY_ALIAS_BIT;
+        attachments[0].format = swapChainImageFormat;
+        attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
+        attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        attachments[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        attachments[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        
+        attachments[1].format = iterationAttachmentFormat;
+        attachments[1].samples = VK_SAMPLE_COUNT_1_BIT;
+        attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        attachments[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        attachments[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        attachments[1].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         
         VkAttachmentReference colorAttachmentRef{};
         colorAttachmentRef.attachment = 0;
         colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    
+        VkAttachmentReference iterationAttachmentRef{};
+        iterationAttachmentRef.attachment = 1;
+        iterationAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    
+        VkAttachmentReference iterationInputAttachmentRef{};
+        iterationInputAttachmentRef.attachment = 1;
+        iterationInputAttachmentRef.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    
+        VkSubpassDescription subpasses[2]{};
+    
+        subpasses[0].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpasses[0].colorAttachmentCount = 1;
+        subpasses[0].pColorAttachments = &iterationAttachmentRef;
+    
+        subpasses[1].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpasses[1].colorAttachmentCount = 1;
+        subpasses[1].pColorAttachments = &colorAttachmentRef;
+        subpasses[1].inputAttachmentCount = 1;
+        subpasses[1].pInputAttachments = &iterationInputAttachmentRef;
+    
+        VkSubpassDependency subpassDependencies[2]{};
+    
+        subpassDependencies[0].srcSubpass = 0;
+        subpassDependencies[0].dstSubpass = 1;
+        subpassDependencies[0].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        subpassDependencies[0].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+        subpassDependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        subpassDependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
         
-        VkSubpassDescription subpass{};
-        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        subpass.colorAttachmentCount = 1;
-        subpass.pColorAttachments = &colorAttachmentRef;
-        
-        VkSubpassDependency dependency{};
-        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-        dependency.dstSubpass = 0;
-        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dependency.srcAccessMask = 0;
-        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        subpassDependencies[1].srcSubpass = VK_SUBPASS_EXTERNAL;
+        subpassDependencies[1].dstSubpass = 0;
+        subpassDependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        subpassDependencies[1].srcAccessMask = 0;
+        subpassDependencies[1].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        subpassDependencies[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
         
         VkRenderPassCreateInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-        renderPassInfo.attachmentCount = 1;
-        renderPassInfo.pAttachments = &colorAttachment;
-        renderPassInfo.subpassCount = 1;
-        renderPassInfo.pSubpasses = &subpass;
-        renderPassInfo.dependencyCount = 1;
-        renderPassInfo.pDependencies = &dependency;
+        renderPassInfo.attachmentCount = 2;
+        renderPassInfo.pAttachments = attachments;
+        renderPassInfo.subpassCount = 2;
+        renderPassInfo.pSubpasses = subpasses;
+        renderPassInfo.dependencyCount = 2;
+        renderPassInfo.pDependencies = subpassDependencies;
         
         if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
             throw std::runtime_error("failed to create render pass!");
         }
     }
     
-    void createDescriptorSetLayout() {
-        VkDescriptorSetLayoutBinding uboLayoutBinding{};
-        uboLayoutBinding.binding = 0;
-        uboLayoutBinding.descriptorCount = 1;
-        uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        uboLayoutBinding.pImmutableSamplers = nullptr;
-        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    void createDescriptorSetLayouts() {
+        std::array<VkDescriptorSetLayoutBinding, 2> setLayoutBindings{};
+    
+        setLayoutBindings[0].binding = 0;
+        setLayoutBindings[0].descriptorCount = 1;
+        setLayoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        setLayoutBindings[0].pImmutableSamplers = nullptr;
+        setLayoutBindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    
+        setLayoutBindings[1].binding = 1;
+        setLayoutBindings[1].descriptorCount = 1;
+        setLayoutBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+        setLayoutBindings[1].pImmutableSamplers = nullptr;
+        setLayoutBindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         
-        VkDescriptorSetLayoutCreateInfo uboLayoutInfo{};
-        uboLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        uboLayoutInfo.bindingCount = 1;
-        uboLayoutInfo.pBindings = &uboLayoutBinding;
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = 2;
+        layoutInfo.pBindings = setLayoutBindings.data();
         
-        if (vkCreateDescriptorSetLayout(device, &uboLayoutInfo, nullptr, &uboDescriptorSetLayout) != VK_SUCCESS) {
+        if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetsLayout) != VK_SUCCESS) {
             throw std::runtime_error("failed to create descriptor set layout!");
         }
     }
     
     void createGraphicsPipeline() {
-        auto vertShaderCode = readFile("res/shaders/vert_quad.spv");
-        auto fragShaderCode = readFile("res/shaders/frag.spv");
+        auto quadShaderCode = readFile("res/shaders/vert_quad.spv");
+        auto iterationShaderCode = readFile("res/shaders/frag_iteration_simple.spv");
+        //auto iterationShaderCode = readFile("res/shaders/frag_iteration_orbit_trap.spv");
+        auto shadingShaderCode = readFile("res/shaders/frag_shading_rainbow.spv");
         
-        VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
-        VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+        VkShaderModule quadShaderModule = createShaderModule(quadShaderCode);
+        VkShaderModule iterationShaderModule = createShaderModule(iterationShaderCode);
+        VkShaderModule shadingShaderModule = createShaderModule(shadingShaderCode);
         
-        VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
-        vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-        vertShaderStageInfo.module = vertShaderModule;
-        vertShaderStageInfo.pName = "main";
+        VkPipelineShaderStageCreateInfo quadShaderStageInfo{};
+        quadShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        quadShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+        quadShaderStageInfo.module = quadShaderModule;
+        quadShaderStageInfo.pName = "main";
         
-        VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
-        fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-        fragShaderStageInfo.module = fragShaderModule;
-        fragShaderStageInfo.pName = "main";
-        
-        VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+        VkPipelineShaderStageCreateInfo iterationShaderStageInfo{};
+        iterationShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        iterationShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        iterationShaderStageInfo.module = iterationShaderModule;
+        iterationShaderStageInfo.pName = "main";
+    
+        VkPipelineShaderStageCreateInfo shadingShaderStageInfo{};
+        shadingShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        shadingShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        shadingShaderStageInfo.module = shadingShaderModule;
+        shadingShaderStageInfo.pName = "main";
+    
+        VkPipelineShaderStageCreateInfo iterationStages[] = {quadShaderStageInfo, iterationShaderStageInfo};
+        VkPipelineShaderStageCreateInfo shadingStages[] = {quadShaderStageInfo, shadingShaderStageInfo};
         
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -907,7 +997,7 @@ class MandelbrotApp {
         colorBlending.blendConstants[2] = 0.0f;
         colorBlending.blendConstants[3] = 0.0f;
         
-        std::array<VkDescriptorSetLayout, 1> descriptorSetLayouts = { uboDescriptorSetLayout };
+        std::array<VkDescriptorSetLayout, 1> descriptorSetLayouts = { descriptorSetsLayout };
         
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -915,50 +1005,66 @@ class MandelbrotApp {
         pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
         pipelineLayoutInfo.pushConstantRangeCount = 0;
         
-        if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &graphicsPipelineLayout) != VK_SUCCESS) {
+        if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &iterationPipelineLayout) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create pipeline layout!");
+        }
+    
+        if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &shadingPipelineLayout) != VK_SUCCESS) {
             throw std::runtime_error("failed to create pipeline layout!");
         }
         
         VkGraphicsPipelineCreateInfo pipelineInfo{};
         pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
         pipelineInfo.stageCount = 2;
-        pipelineInfo.pStages = shaderStages;
+        pipelineInfo.pStages = iterationStages;
         pipelineInfo.pVertexInputState = &vertexInputInfo;
         pipelineInfo.pInputAssemblyState = &inputAssembly;
         pipelineInfo.pViewportState = &viewportState;
         pipelineInfo.pRasterizationState = &rasterizer;
         pipelineInfo.pMultisampleState = &multisampling;
         pipelineInfo.pColorBlendState = &colorBlending;
-        pipelineInfo.layout = graphicsPipelineLayout;
         pipelineInfo.renderPass = renderPass;
-        pipelineInfo.subpass = 0;
         pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
         
-        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) !=
+        pipelineInfo.subpass = 0;
+        pipelineInfo.layout = iterationPipelineLayout;
+        
+        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &iterationPipeline) !=
             VK_SUCCESS) {
-            throw std::runtime_error("failed to create graphics pipeline!");
+            throw std::runtime_error("failed to create iteration pipeline!");
         }
         
-        vkDestroyShaderModule(device, fragShaderModule, nullptr);
-        vkDestroyShaderModule(device, vertShaderModule, nullptr);
+        pipelineInfo.pStages = shadingStages;
+        pipelineInfo.subpass = 1;
+        pipelineInfo.layout = shadingPipelineLayout;
+    
+        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &shadingPipeline) !=
+            VK_SUCCESS) {
+            throw std::runtime_error("failed to create shading pipeline!");
+        }
+        
+        vkDestroyShaderModule(device, quadShaderModule, nullptr);
+        vkDestroyShaderModule(device, iterationShaderModule, nullptr);
+        vkDestroyShaderModule(device, shadingShaderModule, nullptr);
     }
     
     void createFrameBuffers() {
         swapChainFrameBuffers.resize(swapChainImageViews.size());
         
+        VkImageView attachments[2]{};
+    
+        VkFramebufferCreateInfo framebufferInfo{};
+        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebufferInfo.renderPass = renderPass;
+        framebufferInfo.attachmentCount = 2;
+        framebufferInfo.pAttachments = attachments;
+        framebufferInfo.width = swapChainExtent.width;
+        framebufferInfo.height = swapChainExtent.height;
+        framebufferInfo.layers = 1;
+        
         for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-            VkImageView attachments[] = {
-                swapChainImageViews[i]
-            };
-            
-            VkFramebufferCreateInfo framebufferInfo{};
-            framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-            framebufferInfo.renderPass = renderPass;
-            framebufferInfo.attachmentCount = 1;
-            framebufferInfo.pAttachments = attachments;
-            framebufferInfo.width = swapChainExtent.width;
-            framebufferInfo.height = swapChainExtent.height;
-            framebufferInfo.layers = 1;
+            attachments[0] = swapChainImageViews[i];
+            attachments[1] = iterationAttachmentImageViews[i];
             
             if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFrameBuffers[i]) != VK_SUCCESS) {
                 throw std::runtime_error("failed to create framebuffer!");
@@ -983,7 +1089,11 @@ class MandelbrotApp {
         graphicsPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         graphicsPoolSize.descriptorCount = static_cast<uint32_t>(swapChainImages.size());
         
-        std::array<VkDescriptorPoolSize, 1> descriptorPools = { graphicsPoolSize };
+        VkDescriptorPoolSize iterationPoolSize{};
+        iterationPoolSize.type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+        iterationPoolSize.descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+        
+        std::array<VkDescriptorPoolSize, 2> descriptorPools = { graphicsPoolSize, iterationPoolSize };
         
         VkDescriptorPoolCreateInfo graphicsPoolInfo{};
         graphicsPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1024,16 +1134,16 @@ class MandelbrotApp {
     }
     
     void createGraphicsDescriptorSets() {
-        std::vector<VkDescriptorSetLayout> graphicsLayouts(swapChainImages.size(), uboDescriptorSetLayout);
+        std::vector<VkDescriptorSetLayout> descriptorSetLayouts(swapChainImages.size(), descriptorSetsLayout);
         
-        VkDescriptorSetAllocateInfo graphicsAllocInfo{};
-        graphicsAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        graphicsAllocInfo.descriptorPool = graphicsDescriptorPool;
-        graphicsAllocInfo.descriptorSetCount = static_cast<uint32_t>(swapChainImages.size());
-        graphicsAllocInfo.pSetLayouts = graphicsLayouts.data();
+        VkDescriptorSetAllocateInfo descriptorSetAllocInfo{};
+        descriptorSetAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        descriptorSetAllocInfo.descriptorPool = graphicsDescriptorPool;
+        descriptorSetAllocInfo.descriptorSetCount = static_cast<uint32_t>(swapChainImages.size());
+        descriptorSetAllocInfo.pSetLayouts = descriptorSetLayouts.data();
         
-        graphicsDescriptorSets.resize(swapChainImages.size());
-        if (vkAllocateDescriptorSets(device, &graphicsAllocInfo, graphicsDescriptorSets.data()) != VK_SUCCESS) {
+        descriptorSets.resize(swapChainImages.size());
+        if (vkAllocateDescriptorSets(device, &descriptorSetAllocInfo, descriptorSets.data()) != VK_SUCCESS) {
             throw std::runtime_error("failed to allocate graphics descriptor sets!");
         }
         
@@ -1043,18 +1153,34 @@ class MandelbrotApp {
             graphicsBufferInfo.offset = 0;
             graphicsBufferInfo.range = sizeof(MandelbrotUBO);
             
-            VkWriteDescriptorSet graphicsDescriptorWrite{};
-            graphicsDescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            graphicsDescriptorWrite.dstSet = graphicsDescriptorSets[i];
-            graphicsDescriptorWrite.dstBinding = 0;
-            graphicsDescriptorWrite.dstArrayElement = 0;
-            graphicsDescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            graphicsDescriptorWrite.descriptorCount = 1;
-            graphicsDescriptorWrite.pBufferInfo = &graphicsBufferInfo;
-            graphicsDescriptorWrite.pImageInfo = nullptr;
-            graphicsDescriptorWrite.pTexelBufferView = nullptr;
+            VkDescriptorImageInfo iteratorImageInfo{};
+            iteratorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            iteratorImageInfo.imageView = iterationAttachmentImageViews[i];
+            iteratorImageInfo.sampler = VK_NULL_HANDLE;
+    
+            std::array<VkWriteDescriptorSet, 2> writeDescriptorSets{};
             
-            vkUpdateDescriptorSets(device, 1, &graphicsDescriptorWrite, 0, nullptr);
+            writeDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            writeDescriptorSets[0].dstSet = descriptorSets[i];
+            writeDescriptorSets[0].dstBinding = 0;
+            writeDescriptorSets[0].dstArrayElement = 0;
+            writeDescriptorSets[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            writeDescriptorSets[0].descriptorCount = 1;
+            writeDescriptorSets[0].pBufferInfo = &graphicsBufferInfo;
+            writeDescriptorSets[0].pImageInfo = nullptr;
+            writeDescriptorSets[0].pTexelBufferView = nullptr;
+    
+            writeDescriptorSets[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            writeDescriptorSets[1].dstSet = descriptorSets[i];
+            writeDescriptorSets[1].dstBinding = 1;
+            writeDescriptorSets[1].dstArrayElement = 0;
+            writeDescriptorSets[1].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+            writeDescriptorSets[1].descriptorCount = 1;
+            writeDescriptorSets[1].pBufferInfo = nullptr;
+            writeDescriptorSets[1].pImageInfo = &iteratorImageInfo;
+            writeDescriptorSets[1].pTexelBufferView = nullptr;
+            
+            vkUpdateDescriptorSets(device, 2, writeDescriptorSets.data(), 0, nullptr);
         }
     }
     
@@ -1142,7 +1268,7 @@ class MandelbrotApp {
     }
     
     void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlagBits usage,
-                     VkMemoryPropertyFlags property, VkImage &image, VkDeviceMemory &memory) {
+                     uint32_t queueFamily, VkImageLayout layout, VkImage &image, VkDeviceMemory &memory) {
         VkImageCreateInfo imageInfo{};
         imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -1153,9 +1279,11 @@ class MandelbrotApp {
         imageInfo.arrayLayers = 1;
         imageInfo.format = format;
         imageInfo.tiling = tiling;
-        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.initialLayout = layout;
         imageInfo.usage = usage;
         imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        imageInfo.queueFamilyIndexCount = 1;
+        imageInfo.pQueueFamilyIndices = &queueFamily;
         imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
         imageInfo.flags = 0;
         
@@ -1264,9 +1392,9 @@ class MandelbrotApp {
             if (((typeFilter & (1 << i)) != 0u) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
                 return i;
             }
-            
-            throw std::runtime_error("failed to find suitable memory type!");
         }
+
+        throw std::runtime_error("failed to find suitable memory type!");
         return 0;
     }
     
@@ -1402,17 +1530,23 @@ class MandelbrotApp {
             VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
             renderPassInfo.clearValueCount = 1;
             renderPassInfo.pClearValues = &clearColor;
+    
+            std::array<VkDescriptorSet, 1> bindingDescriptorSets = { descriptorSets[i] };
             
             vkCmdBeginRenderPass(graphicsCommandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
             
             vkCmdBindPipeline(graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
-                              graphicsPipeline);
+                              iterationPipeline);
+            vkCmdBindDescriptorSets(graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shadingPipelineLayout,
+                                    0, bindingDescriptorSets.size(), bindingDescriptorSets.data(), 0, nullptr);
+            vkCmdDraw(graphicsCommandBuffers[i], 4, 1, 0, 0);
+    
+            vkCmdNextSubpass(graphicsCommandBuffers[i], VK_SUBPASS_CONTENTS_INLINE);
             
-            std::array<VkDescriptorSet, 1> descriptorSets = { graphicsDescriptorSets[i] };
-            
-            vkCmdBindDescriptorSets(graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout,
-                                    0, descriptorSets.size(), descriptorSets.data(), 0, nullptr);
-            
+            vkCmdBindPipeline(graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
+                              shadingPipeline);
+            vkCmdBindDescriptorSets(graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shadingPipelineLayout,
+                                    0, bindingDescriptorSets.size(), bindingDescriptorSets.data(), 0, nullptr);
             vkCmdDraw(graphicsCommandBuffers[i], 4, 1, 0, 0);
             
             //ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), graphicsCommandBuffers[i]);
@@ -1533,7 +1667,7 @@ class MandelbrotApp {
         double time = std::chrono::duration<double, std::chrono::seconds::period>(currentTime - startTime).count();
         
         MandelbrotUBO ubo{};
-        ubo.pos = glm::highp_vec2(posReal, posImg);
+        ubo.pos = glm::highp_dvec2(posReal, posImg);
         ubo.res = glm::mediump_ivec2(windowHeight, windowWidth);
         ubo.zoom = static_cast<double>(zoomScale);
         ubo.iterations = 300;

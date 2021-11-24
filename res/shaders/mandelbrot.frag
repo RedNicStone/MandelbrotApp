@@ -6,7 +6,7 @@ precision mediump float;
 layout(location = 0) in vec2 UVcoord;
 
 layout(binding = 0) uniform UniformBufferObject {
-	vec2 pos;
+	dvec2 pos;
 	float zoom;
 	int iterations;
 	int color;
